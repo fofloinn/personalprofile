@@ -1,0 +1,144 @@
+services:
+  database:
+    image: mariadb:11.4
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:?Set DB_NAME in .env}
+      MARIADB_USER: ${DB_USER:?Set DB_USER in .env}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env}
+    volumes:
+      - database-data:/var/lib/mysql
+    networks: [database]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 768m
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  wordpress:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, NET_BIND_SERVICE]
+    environment:
+      WORDPRESS_DB_HOST: database:3306
+      WORDPRESS_DB_NAME: ${DB_NAME}
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      WEBSITE_PRODUCTION: "1"
+      WORDPRESS_CONFIG_EXTRA: |
+        require '/opt/website/production-config.php';
+    volumes:
+      - wordpress-data:/var/www/html
+      - wordpress-uploads:/var/www/html/wp-content/uploads
+    networks: [web, database]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1/wp-includes/css/dashicons.min.css"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 768m
+    logging: *logging
+
+  proxy:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    depends_on: [wordpress]
+    entrypoint: ["sh", "/etc/website/proxy-entrypoint.sh"]
+    ports:
+      - "${HTTP_PORT:-80}:8080"
+      - "${HTTPS_PORT:-443}:8443"
+      - "127.0.0.1:${ADMIN_PORT:-8443}:8444"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/proxy.conf:/etc/nginx/website-proxy.conf:ro
+      - ./docker/nginx/proxy-entrypoint.sh:/etc/website/proxy-entrypoint.sh:ro
+      - certificates:/etc/letsencrypt:ro
+      - acme-webroot:/var/www/acme:ro
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID]
+    networks: [web]
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t && kill -0 $$(cat /var/run/nginx.pid)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 128m
+    logging: *logging
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        trap 'exit 0' TERM INT
+        while :; do
+          certbot renew --webroot -w /var/www/acme --non-interactive ||
+            echo 'ERROR: certificate renewal failed; inspect certbot logs' >&2
+          sleep 43200 & wait $$!
+        done
+    volumes:
+      - certificates:/etc/letsencrypt
+      - acme-webroot:/var/www/acme
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    mem_limit: 256m
+    logging: *logging
+
+  acme-bootstrap:
+    image: nginx:stable-alpine
+    profiles: [bootstrap]
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    ports:
+      - "${HTTP_PORT:-80}:8080"
+    volumes:
+      - ./docker/nginx/bootstrap.conf:/etc/nginx/nginx.conf:ro
+      - acme-webroot:/var/www/acme:ro
+    read_only: true
+    tmpfs: [/var/cache/nginx, /var/run, /tmp]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID]
+    mem_limit: 64m
+    logging: *logging
+
+networks:
+  web:
+  database:
+    internal: true
+
+volumes:
+  database-data:
+    name: ${SITE_VOLUME_PREFIX:-website}_database-data
+  wordpress-data:
+    name: ${SITE_VOLUME_PREFIX:-website}_wordpress-data
+  wordpress-uploads:
+    name: ${SITE_VOLUME_PREFIX:-website}_wordpress-uploads
+  certificates:
+    name: ${SITE_VOLUME_PREFIX:-website}_certificates
+  acme-webroot:
+    name: ${SITE_VOLUME_PREFIX:-website}_acme-webroot

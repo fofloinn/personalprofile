@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+!.env.production.example
+wordpress.sql
+.playwright-mcp/
+backups/
+.github/copilot-instructions.md
