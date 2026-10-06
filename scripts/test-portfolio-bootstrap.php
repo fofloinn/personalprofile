@@ -169,6 +169,7 @@ check(str_contains($home->post_content, 'Senior Site Reliability Engineer'), 'Th
 check(str_contains($home->post_content, 'large-scale cloud services used by customers around the world'), 'The Microsoft role should describe customer impact generically.');
 check(!str_contains($home->post_content, 'Azure Resource Manager') && !str_contains($home->post_content, 'sovereign cloud'), 'The Microsoft profile must not expose internal product or environment details.');
 check(str_contains($home->post_content, 'https://www.linkedin.com/in/fearghal-o-floinn-7b237939'), 'The approved LinkedIn link should be included.');
+check(str_contains($home->post_content, 'https://github.com/fofloinn'), 'The GitHub link should be included.');
 check(!str_contains($home->post_content, 'mailto:') && !str_contains($home->post_content, 'tel:'), 'Private contact links must not be included.');
 check(!preg_match('/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i', $home->post_content), 'Email addresses must not be included.');
 check($GLOBALS['test_options']['blogname'] === 'Fearghal Ó Floinn', 'The site title should match the current site.');

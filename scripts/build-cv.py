@@ -17,6 +17,7 @@ OUTPUT = ROOT / "theme" / "assets" / "Fearghal-O-Floinn-CV.pdf"
 NAME = "Fearghal Ó Floinn"
 TITLE = "Senior Site Reliability Engineer"
 LINKEDIN = "https://www.linkedin.com/in/fearghal-o-floinn-7b237939"
+GITHUB = "https://github.com/fofloinn"
 
 INK = HexColor("#1f2933")
 ACCENT = HexColor("#1d4e89")
@@ -91,7 +92,7 @@ def main():
         title=f"{NAME} - Curriculum Vitae", author=NAME,
     )
     story = [Paragraph(NAME, styles["name"]), Paragraph(TITLE, styles["title"]),
-             Paragraph(f'<u>{LINKEDIN}</u>', styles["p"]), HRFlowable(width="100%", color=ACCENT, thickness=1), Spacer(1, 4)]
+             Paragraph(f'<u>{LINKEDIN}</u> &nbsp;|&nbsp; <u>{GITHUB}</u>', styles["p"]), HRFlowable(width="100%", color=ACCENT, thickness=1), Spacer(1, 4)]
 
     skip_intro = True
     for kind, value in parser.blocks:

@@ -307,12 +307,15 @@ return <<<'HTML'
 <h2 class="wp-block-heading" id="connect">Connect</h2>
 <!-- /wp:heading -->
 <!-- wp:paragraph -->
-<p>Find my professional profile and connect with me on LinkedIn.</p>
+<p>Find my professional profile and connect with me on LinkedIn, or see my code on GitHub.</p>
 <!-- /wp:paragraph -->
 <!-- wp:buttons -->
 <div class="wp-block-buttons">
 <!-- wp:button -->
 <div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="https://www.linkedin.com/in/fearghal-o-floinn-7b237939">Connect on LinkedIn</a></div>
+<!-- /wp:button -->
+<!-- wp:button -->
+<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="https://github.com/fofloinn">View my GitHub</a></div>
 <!-- /wp:button -->
 </div>
 <!-- /wp:buttons -->
