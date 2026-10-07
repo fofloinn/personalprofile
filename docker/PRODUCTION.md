@@ -4,6 +4,12 @@
 
 Use `compose.production.yaml` as a standalone Compose file, not an override merged with `compose.yaml`. Production publishes only the reverse proxy's HTTP/HTTPS ports and a loopback-only administration port. Neither WordPress nor MariaDB publishes a host port.
 
+**Optional HA HTTPS:** see [the staged privacy and deployment gates](HOME_ASSISTANT_HTTPS.md).
+When using that option, replace **every** `docker compose -f compose.production.yaml`
+command below with `bash scripts/production-compose.sh`; the wrapper retains the
+private generated network override. `setup-production.sh` uses it automatically.
+Default website setup has no HA HTTPS vhost and makes no HA certificate request.
+
 Public HTTPS is read-only: GET/HEAD requests are permitted, while WordPress admin/login routes, REST (both URL forms), XML-RPC, PHP paths, dotfiles, and backup/configuration files are blocked. A must-use plugin provides an additional public REST boundary. Public forms, frontend REST-dependent plugins, application passwords, and external XML-RPC clients are intentionally unsupported.
 
 The private listener is HTTPS on host `127.0.0.1:8443`, available through SSH only. WordPress uses `https://fearghal.fnl.life:8443` for private admin and REST URLs while retaining `https://fearghal.fnl.life` as the public homepage. Incoming forwarded headers are overwritten by the proxy. Do not expose the WordPress backend or connect untrusted containers to its network.

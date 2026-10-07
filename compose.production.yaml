@@ -67,6 +67,8 @@ services:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/proxy.conf:/etc/nginx/website-proxy.conf:ro
       - ./docker/nginx/proxy-entrypoint.sh:/etc/website/proxy-entrypoint.sh:ro
+      # Empty by default. Only the explicit HA setup script writes this directory.
+      - ./.local/ha-nginx:/etc/nginx/ha-enabled:ro
       - certificates:/etc/letsencrypt:ro
       - acme-webroot:/var/www/acme:ro
     read_only: true

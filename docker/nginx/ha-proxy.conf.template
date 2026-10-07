@@ -1,0 +1,34 @@
+# Explicit public opt-in. No request/error logs: nginx error messages can include URLs.
+map $http_upgrade $ha_connection {
+    default upgrade;
+    '' close;
+}
+
+server {
+    listen 8443 ssl;
+    server_name ha.fnl.life;
+    ssl_certificate /etc/letsencrypt/live/ha.fnl.life/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ha.fnl.life/privkey.pem;
+    access_log off;
+    error_log /dev/null;
+    # Apply to denied paths too. A local add_header replaces inherited headers.
+    add_header Cache-Control "no-store" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy no-referrer always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    if ($host != ha.fnl.life) { return 444; }
+
+    # Explicit allowlist, not the website's GET-only/admin restrictions.
+    # Everything else (including /local, media, webhooks, tokenized camera/image
+    # URLs, custom integration assets and unauthenticated sharing) fails closed.
+    location = / { include /etc/nginx/ha-enabled/upstream.inc; }
+    location = /api/ { include /etc/nginx/ha-enabled/upstream.inc; }
+    location = /api/websocket { include /etc/nginx/ha-enabled/upstream.inc; }
+    location = /api/google_assistant { include /etc/nginx/ha-enabled/upstream.inc; }
+    location ~ ^/(auth/(authorize|token|providers|login_flow)(/|$)|frontend_latest/|frontend_es5/|static/) {
+        include /etc/nginx/ha-enabled/upstream.inc;
+    }
+    location / { return 404; }
+}

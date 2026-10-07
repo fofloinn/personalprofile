@@ -5,4 +5,6 @@
 wordpress.sql
 .playwright-mcp/
 backups/
+.local/
+__pycache__/
 .github/copilot-instructions.md

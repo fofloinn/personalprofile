@@ -76,9 +76,14 @@ For a **new host**, no WordPress/database/uploads backups are required: prepare 
 
 The default `compose.yaml` is for development and binds WordPress to host loopback only.
 
+Optional, no-subscription Home Assistant HTTPS on the same Linux host has separate
+[privacy, network and HA UI gates](docker/HOME_ASSISTANT_HTTPS.md). It is disabled by
+default. Use `python3 scripts/setup-ha-https.py prepare`, then complete the mandatory
+UI stop before `enable`. Use `bash scripts/production-compose.sh` for production
+lifecycle commands so the dedicated proxy interface survives redeployment.
+
 Keep `.env` private. Back up the database and both WordPress volumes before updates or migration. For public access, put the site behind a reverse proxy that provides HTTPS and configure your domain and router accordingly. Do not expose the WordPress container directly to the public internet without HTTPS and appropriate host firewall rules.
 
 ## License
 
 The code and configuration are released under the [MIT License](LICENSE). The personal profile content in `docker/portfolio-content.php` and the CV PDF in `theme/assets` are not covered by that licence and remain all rights reserved.
-
