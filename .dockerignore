@@ -6,3 +6,5 @@
 wordpress.sql
 .playwright-mcp
 backups
+.local
+__pycache__

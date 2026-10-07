@@ -56,6 +56,9 @@ class SetupTests(unittest.TestCase):
         )
         (self.root / ".env").write_text("DB_PASSWORD=unchanged\n")
         (self.root / "scripts").mkdir()
+        (self.root / "scripts/production-compose.sh").write_text(
+            (ROOT / "scripts/production-compose.sh").read_text()
+        )
         (self.root / "scripts/issue-certificate.sh").write_text(
             'echo issued >> "$MOCK_LOG"\n'
         )
@@ -158,6 +161,16 @@ class SetupTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Public administration check failed", result.stderr)
         self.assertNotIn("Production is ready", result.stdout)
+
+    def test_optional_ha_network_survives_ordinary_setup(self):
+        (self.root / ".local").mkdir()
+        (self.root / ".local/ha-compose.json").write_text("{}")
+        result = self.run_setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = (self.root / "commands.log").read_text().splitlines()
+        lifecycle = [c for c in commands if c.startswith("compose -f")]
+        self.assertTrue(lifecycle)
+        self.assertTrue(all("-f .local/ha-compose.json" in c for c in lifecycle))
 
 
 if __name__ == "__main__":

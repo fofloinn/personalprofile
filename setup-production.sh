@@ -19,7 +19,7 @@ EOF
 }
 
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
-compose() { docker compose -f compose.production.yaml "$@"; }
+compose() { bash scripts/production-compose.sh "$@"; }
 
 email=''
 backup_dir=''
