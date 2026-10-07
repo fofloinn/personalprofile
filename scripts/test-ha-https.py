@@ -1,5 +1,6 @@
 """Offline stdlib tests. Never read .env, real HA state, or run ACME."""
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -7,6 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from contextlib import redirect_stdout
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("ha_https", ROOT / "scripts/setup-ha-https.py")
@@ -37,6 +39,47 @@ class HttpsTests(unittest.TestCase):
         ha.private_write(ha.STATE, json.dumps(self.saved))
         ha.private_write(ha.OVERLAY, "{}")
         ha.private_write(self.config / "probe.conf", "# synthetic")
+
+    def test_compose_failure_reports_stage_without_raw_output(self):
+        result = subprocess.CompletedProcess([], 1, "PRIVATE_FIXTURE", "PRIVATE_FIXTURE")
+        with patch.object(ha, "run", return_value=result), self.assertRaises(ha.SetupError) as caught:
+            ha.compose("up", "-d", "proxy")
+        self.assertIn("Proxy creation/readiness failed (exit 1)", str(caught.exception))
+        self.assertNotIn("PRIVATE_FIXTURE", str(caught.exception))
+        with patch.object(ha, "run", return_value=result):
+            self.assertIs(ha.compose("up", ok=False), result)
+
+    def test_diagnose_only_runs_read_commands_and_redacts_results(self):
+        self.prepared()
+        before = {p: p.read_bytes() for p in self.local.rglob("*") if p.is_file()}
+        results = [
+            subprocess.CompletedProcess([], 0, "", ""),
+            subprocess.CompletedProcess([], 0, "PRIVATE_CONTAINER_ID", ""),
+            subprocess.CompletedProcess([], 0, "[emerg] host not found in upstream PRIVATE_HOST", "PRIVATE_TOKEN"),
+        ]
+        output = io.StringIO()
+        with patch.object(ha, "run", side_effect=results) as runner, redirect_stdout(output):
+            ha.diagnose()
+        self.assertIn("Website upstream DNS lookup failed", output.getvalue())
+        self.assertNotIn("PRIVATE_", output.getvalue())
+        commands = [call.args[0] for call in runner.call_args_list]
+        self.assertEqual([c[6] for c in commands], ["config", "ps", "logs"])
+        self.assertTrue(all(c[:2] == ["docker", "compose"] for c in commands))
+        self.assertEqual(before, {p: p.read_bytes() for p in self.local.rglob("*") if p.is_file()})
+
+    def test_diagnose_validation_failure_stops_without_raw_output(self):
+        output = io.StringIO()
+        result = subprocess.CompletedProcess([], 1, "", "required variable PRIVATE_NAME: PRIVATE_VALUE")
+        with patch.object(ha, "run", return_value=result) as runner, redirect_stdout(output), \
+                self.assertRaises(ha.SetupError):
+            ha.diagnose()
+        self.assertEqual(runner.call_count, 1)
+        self.assertIn("Required Compose environment variable missing", output.getvalue())
+        self.assertNotIn("PRIVATE_", output.getvalue())
+
+    def test_unknown_diagnostic_text_is_not_echoed(self):
+        self.assertEqual(ha.diagnostic_categories("PRIVATE_FIXTURE"),
+                         "No recognized error category; raw output withheld")
 
     def fake_compose(self, *args, ok=True):
         self.calls.append(args)

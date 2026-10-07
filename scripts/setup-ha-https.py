@@ -41,7 +41,68 @@ def run(args, *, ok=True):
 
 
 def compose(*args, ok=True):
-    return run(["bash", "scripts/production-compose.sh", *args], ok=ok)
+    result = run(["bash", "scripts/production-compose.sh", *args], ok=False)
+    if ok and result.returncode:
+        stage = {"config": "Compose configuration validation", "up": "Proxy creation/readiness",
+                 "version": "Compose version lookup", "exec": "Proxy command",
+                 "restart": "Proxy restart", "stop": "Proxy stop", "run": "Certificate operation"}.get(
+                     args[0] if args else "", "Compose operation")
+        raise SetupError(f"{stage} failed (exit {result.returncode}); raw output withheld. "
+                         "Run 'python3 scripts/setup-ha-https.py diagnose' for safe diagnostics.")
+    return result
+
+
+def diagnostic_categories(text):
+    patterns = {
+        "permission denied": "Permission denied",
+        "cannot connect to the docker daemon": "Docker daemon unavailable",
+        "is not running": "Container not running",
+        "no such service": "Compose service missing",
+        "port is already allocated": "Host port already allocated",
+        "address already in use": "Address already in use",
+        "pool overlaps": "Docker network overlap",
+        "additional properties": "Unsupported Compose configuration property",
+        "required variable": "Required Compose environment variable missing",
+        "issue the certificate using": "Existing website certificate missing",
+        "cannot load certificate": "Certificate unreadable or invalid",
+        "host not found in upstream": "Website upstream DNS lookup failed",
+        "unknown directive": "Unsupported nginx directive",
+        "duplicate": "Duplicate configuration entry reported",
+        "unhealthy": "Container health check failed",
+        "[emerg]": "nginx startup/configuration error",
+    }
+    lowered = text.lower()
+    matches = sorted({label for pattern, label in patterns.items() if pattern in lowered})
+    return "; ".join(matches) if matches else "No recognized error category; raw output withheld"
+
+
+def diagnose():
+    # Bypass the lifecycle wrapper: diagnostics must not mkdir/chmod or start services.
+    for path in (LOCAL, CONFIG, STATE, OVERLAY):
+        require(not path.is_symlink(), "Refusing symlinked optional configuration.")
+    command = ["docker", "compose", "-f", "compose.production.yaml"]
+    if OVERLAY.is_file():
+        command += ["-f", str(OVERLAY)]
+    print("Prepared settings present: " + ("yes" if STATE.is_file() else "no"))
+    print("Compose override present: " + ("yes" if OVERLAY.is_file() else "no"))
+    print("Public route file present (not proof of live state): " +
+          ("yes" if (CONFIG / "public.conf").is_file() else "no"))
+    result = run(command + ["config", "--quiet"], ok=False)
+    print(f"Compose validation exit: {result.returncode}")
+    if result.returncode:
+        print(diagnostic_categories(result.stdout + "\n" + result.stderr))
+        raise SetupError("Diagnostic validation failed; no services or settings changed.")
+    result = run(command + ["ps", "--status", "running", "--quiet", "proxy"], ok=False)
+    print(f"Proxy status lookup exit: {result.returncode}")
+    if result.returncode:
+        print(diagnostic_categories(result.stdout + "\n" + result.stderr))
+        raise SetupError("Diagnostic status lookup failed; no services or settings changed.")
+    print("Running proxy found in this Compose project: " + ("yes" if result.stdout.strip() else "no"))
+    result = run(command + ["logs", "--no-color", "--tail", "40", "proxy"], ok=False)
+    print(f"Proxy log lookup exit: {result.returncode}")
+    print("Recent proxy log categories: " + diagnostic_categories(result.stdout + "\n" + result.stderr))
+    require(result.returncode == 0, "Diagnostic log lookup failed; no services or settings changed.")
+    print("Read-only diagnostics complete. No raw logs, addresses, names or credentials printed.")
 
 
 def private_write(path, content):
@@ -281,10 +342,13 @@ def enable():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "settings", "enable", "check", "disable"))
+    parser.add_argument("action", choices=("prepare", "settings", "enable", "check", "disable", "diagnose"))
     args = parser.parse_args()
     require(sys.platform == "linux", "Run ONLY on the Linux NUC; this is not a workstation publisher.")
     require(os.getuid() != 0, "Run as the deployment user, not root/sudo.")
+    if args.action == "diagnose":
+        diagnose()
+        return
     def interrupted(_signum, _frame):
         raise SetupError("Interrupted; activation was not completed.")
     signal.signal(signal.SIGTERM, interrupted)

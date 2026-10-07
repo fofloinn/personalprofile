@@ -129,6 +129,15 @@ Do not declare deployment successful after a failed check.
 
 ## External acceptance and rollback
 
+If preparation fails, do not enable public access or delete the prepared settings.
+Run `python3 scripts/setup-ha-https.py diagnose` from the same website checkout.
+This read-only command reports configuration/status exit codes and fixed error
+categories from recent proxy logs, without printing raw output or private values.
+It does not restart services, create configuration, or request certificates.
+An unrecognized category is not proof of success; inspect raw errors only locally.
+Command failures now identify the failed stage without echoing command arguments.
+Once the underlying issue is resolved, `prepare` resumes using the saved settings.
+
 From a separate external network, without credentials/tokens (never use `-k`):
 
 ```sh
